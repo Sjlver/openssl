@@ -74,6 +74,7 @@ static int allow_customize_debug = 0;/* exchanging memory-related functions at
 
 /* the following pointers may be changed as long as 'allow_customize' is set */
 
+#ifdef CAN_OVERRIDE_MEMORY_FUNCTIONS
 static void *(*malloc_func)(size_t)         = malloc;
 static void *default_malloc_ex(size_t num, const char *file, int line)
 	{ return malloc_func(num); }
@@ -97,6 +98,15 @@ static void *(*malloc_locked_ex_func)(size_t, const char *file, int line)
 
 static void (*free_locked_func)(void *)     = free;
 
+#else
+
+#define malloc_ex_func(size, file, line) malloc(size)
+#define realloc_ex_func(ptr, size, file, line) realloc(ptr, size)
+#define free_func(size) free(size)
+#define malloc_locked_ex_func(size, file, line) malloc(size)
+#define free_locked_func(size) free(size)
+
+#endif
 
 
 /* may be changed as long as 'allow_customize_debug' is set */
@@ -126,6 +136,7 @@ int CRYPTO_set_mem_functions(void *(*m)(size_t), void *(*r)(void *, size_t),
 	{
 	/* Dummy call just to ensure OPENSSL_init() gets linked in */
 	OPENSSL_init();
+#ifdef CAN_OVERRIDE_MEMORY_FUNCTIONS
 	if (!allow_customize)
 		return 0;
 	if ((m == 0) || (r == 0) || (f == 0))
@@ -136,6 +147,9 @@ int CRYPTO_set_mem_functions(void *(*m)(size_t), void *(*r)(void *, size_t),
 	malloc_locked_func=m; malloc_locked_ex_func=default_malloc_locked_ex;
 	free_locked_func=f;
 	return 1;
+#else
+        return 0;
+#endif
 	}
 
 int CRYPTO_set_mem_ex_functions(
@@ -143,6 +157,7 @@ int CRYPTO_set_mem_ex_functions(
         void *(*r)(void *, size_t,const char *,int),
 	void (*f)(void *))
 	{
+#ifdef CAN_OVERRIDE_MEMORY_FUNCTIONS
 	if (!allow_customize)
 		return 0;
 	if ((m == 0) || (r == 0) || (f == 0))
@@ -153,10 +168,14 @@ int CRYPTO_set_mem_ex_functions(
 	malloc_locked_func=0; malloc_locked_ex_func=m;
 	free_locked_func=f;
 	return 1;
+#else
+        return 0;
+#endif
 	}
 
 int CRYPTO_set_locked_mem_functions(void *(*m)(size_t), void (*f)(void *))
 	{
+#ifdef CAN_OVERRIDE_MEMORY_FUNCTIONS
 	if (!allow_customize)
 		return 0;
 	if ((m == NULL) || (f == NULL))
@@ -164,12 +183,16 @@ int CRYPTO_set_locked_mem_functions(void *(*m)(size_t), void (*f)(void *))
 	malloc_locked_func=m; malloc_locked_ex_func=default_malloc_locked_ex;
 	free_locked_func=f;
 	return 1;
+#else
+        return 0;
+#endif
 	}
 
 int CRYPTO_set_locked_mem_ex_functions(
         void *(*m)(size_t,const char *,int),
         void (*f)(void *))
 	{
+#ifdef CAN_OVERRIDE_MEMORY_FUNCTIONS
 	if (!allow_customize)
 		return 0;
 	if ((m == NULL) || (f == NULL))
@@ -177,6 +200,9 @@ int CRYPTO_set_locked_mem_ex_functions(
 	malloc_locked_func=0; malloc_locked_ex_func=m;
 	free_func=f;
 	return 1;
+#else
+        return 0;
+#endif
 	}
 
 int CRYPTO_set_mem_debug_functions(void (*m)(void *,int,const char *,int,int),
@@ -199,11 +225,17 @@ int CRYPTO_set_mem_debug_functions(void (*m)(void *,int,const char *,int,int),
 void CRYPTO_get_mem_functions(void *(**m)(size_t), void *(**r)(void *, size_t),
 	void (**f)(void *))
 	{
+#ifdef CAN_OVERRIDE_MEMORY_FUNCTIONS
 	if (m != NULL) *m = (malloc_ex_func == default_malloc_ex) ? 
 	                     malloc_func : 0;
 	if (r != NULL) *r = (realloc_ex_func == default_realloc_ex) ? 
 	                     realloc_func : 0;
 	if (f != NULL) *f=free_func;
+#else
+	if (m != NULL) *m = 0;
+	if (r != NULL) *r = 0;
+	if (f != NULL) *f = 0;
+#endif
 	}
 
 void CRYPTO_get_mem_ex_functions(
@@ -211,27 +243,43 @@ void CRYPTO_get_mem_ex_functions(
         void *(**r)(void *, size_t,const char *,int),
 	void (**f)(void *))
 	{
+#ifdef CAN_OVERRIDE_MEMORY_FUNCTIONS
 	if (m != NULL) *m = (malloc_ex_func != default_malloc_ex) ?
 	                    malloc_ex_func : 0;
 	if (r != NULL) *r = (realloc_ex_func != default_realloc_ex) ?
 	                    realloc_ex_func : 0;
 	if (f != NULL) *f=free_func;
+#else
+	if (m != NULL) *m = 0;
+	if (r != NULL) *r = 0;
+	if (f != NULL) *f = 0;
+#endif
 	}
 
 void CRYPTO_get_locked_mem_functions(void *(**m)(size_t), void (**f)(void *))
 	{
+#ifdef CAN_OVERRIDE_MEMORY_FUNCTIONS
 	if (m != NULL) *m = (malloc_locked_ex_func == default_malloc_locked_ex) ? 
 	                     malloc_locked_func : 0;
 	if (f != NULL) *f=free_locked_func;
+#else
+	if (m != NULL) *m = 0;
+	if (f != NULL) *f = 0;
+#endif
 	}
 
 void CRYPTO_get_locked_mem_ex_functions(
         void *(**m)(size_t,const char *,int),
         void (**f)(void *))
 	{
+#ifdef CAN_OVERRIDE_MEMORY_FUNCTIONS
 	if (m != NULL) *m = (malloc_locked_ex_func != default_malloc_locked_ex) ?
 	                    malloc_locked_ex_func : 0;
 	if (f != NULL) *f=free_locked_func;
+#else
+	if (m != NULL) *m = 0;
+	if (f != NULL) *f = 0;
+#endif
 	}
 
 void CRYPTO_get_mem_debug_functions(void (**m)(void *,int,const char *,int,int),

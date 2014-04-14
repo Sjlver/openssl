@@ -205,3 +205,5 @@ if __name__ == '__main__':
                 error('Server processed malformed heartbeat, but did not return any extra data.')
         elif typ is 21:
             error('Received alert')
+
+    sys.exit(1)
