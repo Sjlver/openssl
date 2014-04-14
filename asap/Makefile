@@ -7,29 +7,35 @@ OPT=$(LLVM_DIR)/bin/opt
 
 CFLAGS  = -flto -fsanitize=address -fno-omit-frame-pointer -fno-sanitize-recover \
           -fsanitize-blacklist=$(realpath ../asap/asan_blacklist.txt) \
+          -DOPENSSL_NO_HW_PADLOCK \
           -g
-LINUX_CFLAGS = -Wl,--plugin-opt=save-temps -Wl,--export-dynamic
-MACOS_CFLAGS = -Wl,-save-temps
+CONFIGURE_ENV=CC="$(CC)"
+MAKE_FLAGS=
 
 ifeq ($(shell ls $(LLVM_DIR)/lib/LLVMgold.so 2>&1),$(LLVM_DIR)/lib/LLVMgold.so)
     LINUX=1
 
     AR=ar --plugin=$(LLVM_DIR) -r
     RANLIB=ar --plugin=$(LLVM_DIR) -s
+    CFLAGS += -Wl,--export-dynamic
+
     ASAP_LIB=$(LLVM_DIR)/lib/SanityChecks.so
     GCOV_FLAGS=-L$(LLVM_DIR)/lib/clang/3.4/lib/linux -lclang_rt.profile-x86_64
+    SAVE_TEMPS=-Wl,--plugin-opt=save-temps 
+
+    CONFIGURE_ENV += RANLIB="$(RANLIB)"
+    MAKE_FLAGS    += AR="$(AR)"
+    CONFIGURE_TARGET=linux-x86_64
 else
     ASAP_LIB=$(LLVM_DIR)/lib/SanityChecks.dylib
     GCOV_FLAGS=-L$(LLVM_DIR)/lib/clang/3.4/lib/darwin -lclang_rt.profile_osx
+    SAVE_TEMPS=-Wl,-save-temps
+    CONFIGURE_TARGET=darwin64-x86_64-cc
 endif
 
 stamps/configure:
-	mkdir stamps
-ifeq ($(LINUX),1)
-	cd .. && CC=$(CC) RANLIB=$(RANLIB) ./Configure $(CFLAGS) $(LINUX_CFLAGS)
-else
-	cd .. && CC=$(CC)                  ./Configure $(CFLAGS) $(MACOS_CFLAGS)
-endif
+	mkdir -p stamps
+	cd .. && $(CONFIGURE_ENV) ./Configure $(CFLAGS) $(SAVE_TEMPS) $(CONFIGURE_TARGET)
 	touch stamps/configure
 
 stamps/depend: stamps/configure
@@ -37,11 +43,7 @@ stamps/depend: stamps/configure
 	touch stamps/depend
 
 ../apps/openssl: stamps/depend
-ifeq ($(LINUX),1)
-	cd .. && $(MAKE) AR=$(AR)
-else
-	cd .. && $(MAKE)
-endif
+	cd .. && $(MAKE) $(MAKE_FLAGS)
 
 # Compile a version of openssl with profiling
 ../apps/openssl.gcov.o: ../apps/openssl.lto.opt.bc
