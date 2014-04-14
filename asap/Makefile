@@ -15,8 +15,8 @@ MAKE_FLAGS=
 ifeq ($(shell ls $(LLVM_DIR)/lib/LLVMgold.so 2>&1),$(LLVM_DIR)/lib/LLVMgold.so)
     LINUX=1
 
-    AR=ar --plugin=$(LLVM_DIR) -r
-    RANLIB=ar --plugin=$(LLVM_DIR) -s
+    AR=ar --plugin=$(LLVM_DIR)/lib/LLVMgold.so -r
+    RANLIB=ar --plugin=$(LLVM_DIR)/lib/LLVMgold.so -s
     CFLAGS += -Wl,--export-dynamic
 
     ASAP_LIB=$(LLVM_DIR)/lib/SanityChecks.so
