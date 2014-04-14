@@ -92,7 +92,7 @@ def build_heartbeat(tls_ver):
 0x00, 0x03,  # Length
 # Payload
 0x01,       # Type (Request)
-0x40, 0x00  # Payload length
+0x50, 0x00  # Payload length
     ] 
     return heartbeat
 

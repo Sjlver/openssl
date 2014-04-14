@@ -81,3 +81,9 @@
 lib
 Makefile.save
 *.bak
+
+# ASAP files
+asap/*.out
+asap/*.gcda
+asap/*.gcno
+asap/stamps/
