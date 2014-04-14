@@ -62,8 +62,8 @@
 #include "cryptlib.h"
 
 
-static int allow_customize = 1;      /* we provide flexible functions for */
-static int allow_customize_debug = 1;/* exchanging memory-related functions at
+static int allow_customize = 0;      /* we provide flexible functions for */
+static int allow_customize_debug = 0;/* exchanging memory-related functions at
                                       * run-time, but this must be done
                                       * before any blocks are actually
                                       * allocated; or we'll run into huge
