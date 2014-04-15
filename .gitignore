@@ -87,3 +87,5 @@ asap/*.out
 asap/*.gcda
 asap/*.gcno
 asap/stamps/
+*.lto.opt.bc
+*.lto.bc

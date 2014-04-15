@@ -7,7 +7,7 @@ OPT=$(LLVM_DIR)/bin/opt
 
 CFLAGS  = -flto -fsanitize=address -fno-omit-frame-pointer -fno-sanitize-recover \
           -fsanitize-blacklist=$(realpath ../asap/asan_blacklist.txt) \
-          -DOPENSSL_NO_HW_PADLOCK \
+          -DOPENSSL_NO_HW_PADLOCK -DOPENSSL_NO_BUF_FREELISTS \
           -g
 CONFIGURE_ENV=CC="$(CC)"
 MAKE_FLAGS=
@@ -33,6 +33,10 @@ else
     CONFIGURE_TARGET=darwin64-x86_64-cc
 endif
 
+.PHONY: clean
+clean:
+	rm -f stamps/* openssl.lto.opt.gc* asap.*.out
+
 stamps/configure:
 	mkdir -p stamps
 	cd .. && $(CONFIGURE_ENV) ./Configure $(CFLAGS) $(SAVE_TEMPS) $(CONFIGURE_TARGET)
@@ -46,11 +50,20 @@ stamps/depend: stamps/configure
 	cd .. && $(MAKE) $(MAKE_FLAGS)
 
 # Compile a version of openssl with profiling
-../apps/openssl.gcov.o: ../apps/openssl.lto.opt.bc
+../apps/openssl.gcov.o: ../apps/openssl.lto.opt.bc ../apps/openssl
 	$(OPT) -load $(ASAP_LIB) -full-gcov-profiling -exit-instead-of-abort -o $@ $<
 
 ../apps/openssl.gcov: ../apps/openssl.gcov.o
 	$(CC) $(CFLAGS) -o $@ $< $(GCOV_FLAGS) -L.. -lssl -L.. -lcrypto
+
+# Generate profiling data
+openssl.lto.opt.gcda: ../apps/openssl.gcov
+	@echo "Remove old profiling data: rm openssl.lto.opt.gcda"
+	@echo "Run ../apps/openssl.gcov s_server in a terminal"
+	@echo "Run ./hb-test.py -p 4433 -l 4096 localhost"
+	@echo "Type 'Q' <Enter> in the openssl.gcov app to quit after the next request"
+	@echo "Run ./hb-test.py -p 4433 -l 4096 localhost"
+	false
 
 # Compile a version of openssl with ASAP optimization
 ../apps/openssl.as.%.bc: ../apps/openssl.lto.opt.bc openssl.lto.opt.gcda
@@ -66,3 +79,27 @@ stamps/depend: stamps/configure
 ../apps/openssl.as.%: ../apps/openssl.as.%.opt.o
 	$(CC) $(CFLAGS) -o $@ $< -L.. -lssl -L.. -lcrypto
 
+# Compile a test with ASAP optimization
+../test/%.gcov.o: ../test/%.lto.opt.bc ../test/%
+	$(OPT) -load $(ASAP_LIB) -full-gcov-profiling -exit-instead-of-abort -o $@ $<
+
+../test/%.gcov: ../test/%.gcov.o
+	$(CC) $(CFLAGS) -o $@ $< $(GCOV_FLAGS) -L.. -lssl -L.. -lcrypto
+
+%.lto.opt.gcda: ../test/$.gcov
+	rm -f $@
+	$<
+	[ -f $@ ]
+
+../test/%.as.00.bc: ../test/%.lto.opt.bc %.lto.opt.gcda
+	$(OPT) -load $(ASAP_LIB) -almost-sane -sanity-level=0.00 \
+	       -print-removed-checks \
+	       -gcda=$*.lto.opt.gcda \
+	       -gcno=$*.lto.opt.gcno \
+	       -o $@ $< > asap.$*.00.out 2>&1
+
+../test/%.as.00.opt.o: ../test/%.as.00.bc
+	$(OPT) -O3 -o $@ $<
+
+../test/%.as.00: ../test/%.as.00.opt.o
+	$(CC) $(CFLAGS) -o $@ $< -L.. -lssl -L.. -lcrypto

