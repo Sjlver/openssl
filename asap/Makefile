@@ -86,7 +86,7 @@ openssl.lto.opt.gcda: ../apps/openssl.gcov
 ../test/%.gcov: ../test/%.gcov.o
 	$(CC) $(CFLAGS) -o $@ $< $(GCOV_FLAGS) -L.. -lssl -L.. -lcrypto
 
-%.lto.opt.gcda: ../test/$.gcov
+%.lto.opt.gcda: ../test/%.gcov
 	rm -f $@
 	$<
 	[ -f $@ ]
