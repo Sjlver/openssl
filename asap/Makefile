@@ -6,7 +6,7 @@ CC=$(LLVM_DIR)/bin/clang
 OPT=$(LLVM_DIR)/bin/opt
 
 CFLAGS  = -flto -fsanitize=address -fno-omit-frame-pointer -fno-sanitize-recover \
-          -fsanitize-blacklist=$(realpath ../asap/asan_blacklist.txt) \
+          -fsanitize-blacklist=$(realpath asan_blacklist.txt) \
           -DOPENSSL_NO_HW_PADLOCK -DOPENSSL_NO_BUF_FREELISTS \
           -g
 CONFIGURE_ENV=CC="$(CC)"
@@ -50,28 +50,29 @@ stamps/depend: stamps/configure
 	cd .. && $(MAKE) $(MAKE_FLAGS)
 
 # Compile a version of openssl with profiling
-../apps/openssl.gcov.o: ../apps/openssl.lto.opt.bc ../apps/openssl
-	$(OPT) -load $(ASAP_LIB) -full-gcov-profiling -exit-instead-of-abort -o $@ $<
+../apps/openssl.gcov.o: ../apps/openssl
+	$(OPT) -load $(ASAP_LIB) -full-gcov-profiling -exit-instead-of-abort -o $@ $<.lto.opt.bc
 
 ../apps/openssl.gcov: ../apps/openssl.gcov.o
 	$(CC) $(CFLAGS) -o $@ $< $(GCOV_FLAGS) -L.. -lssl -L.. -lcrypto
 
 # Generate profiling data
 openssl.lto.opt.gcda: ../apps/openssl.gcov
-	@echo "Remove old profiling data: rm openssl.lto.opt.gcda"
-	@echo "Run ../apps/openssl.gcov s_server in a terminal"
-	@echo "Run ./hb-test.py -p 4433 -l 4096 localhost"
-	@echo "Type 'Q' <Enter> in the openssl.gcov app to quit after the next request"
-	@echo "Run ./hb-test.py -p 4433 -l 4096 localhost"
-	false
+	rm -f $@
+	../apps/openssl.gcov s_server -cert ../apps/server.pem -WWW & \
+	    pid=$$! && \
+	    sleep 2 && \
+	    (./hb-test.py -p 4433 -l 4096 localhost || true) && \
+	    sleep 2 && \
+	    gdb --pid=$$pid --ex "print exit(0)" --ex "quit"
 
 # Compile a version of openssl with ASAP optimization
-../apps/openssl.as.%.bc: ../apps/openssl.lto.opt.bc openssl.lto.opt.gcda
+../apps/openssl.as.%.bc: ../apps/openssl openssl.lto.opt.gcda
 	$(OPT) -load $(ASAP_LIB) -almost-sane -sanity-level=0.$* \
 	       -print-removed-checks \
 	       -gcda=openssl.lto.opt.gcda \
 	       -gcno=openssl.lto.opt.gcno \
-	       -o $@ $< > asap.$*.out 2>&1
+	       -o $@ $<.lto.opt.bc > asap.$*.out 2>&1
 
 ../apps/openssl.as.%.opt.o: ../apps/openssl.as.%.bc
 	$(OPT) -O3 -o $@ $<
