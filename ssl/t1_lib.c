@@ -3983,6 +3983,7 @@ tls1_process_heartbeat(SSL *s)
 		{
 		unsigned char *buffer, *bp;
 		int r;
+                unsigned int payload_iter;
 
 		/* Allocate memory for the response, size is 1 bytes
 		 * message type, plus 2 bytes payload length, plus
@@ -3994,7 +3995,19 @@ tls1_process_heartbeat(SSL *s)
 		/* Enter response type, length and copy payload */
 		*bp++ = TLS1_HB_RESPONSE;
 		s2n(payload, bp);
-		memcpy(bp, pl, payload);
+
+                // ASAP Experiments
+                // Replace memcpy by a manual loop, so that ASan will instrument it
+		//memcpy(bp, pl, payload);
+                payload_iter = 0;
+                while (payload_iter < payload) {
+                    *(bp + payload_iter) = *(pl + payload_iter);
+                    if (payload_iter % 1024 == 1023) {
+                        fprintf(stderr, "copied 1kb of payload\n");
+                    }
+                    ++payload_iter;
+                }
+
 		bp += payload;
 		/* Random padding */
 		RAND_pseudo_bytes(bp, padding);
